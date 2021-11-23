@@ -27,7 +27,7 @@ library(randomForest)
 
 # Read in all the band data, these are individual bands from a LandSat8 image
 
-#Bands are as follows:
+# Bands are as follows:
 
 # Band 1	Coastal aersol
 # Band 2	Blue
@@ -53,7 +53,7 @@ band9 <- raster("data/band9.tif")
 band10 <- raster("data/band10.tif")
 band11 <- raster("data/band11.tif")
 
-#look at some of the bands, notice any variation or bands that stand out
+# Look at some of the bands, notice any variation or bands that stand out
 plot(band1)
 plot(band10)
 plot(band5)
@@ -125,17 +125,9 @@ box(col = "white")
 
 #  Since we have create the image, we may wish to remove some of the extra files
 # for the sake of memory space
-rm(band1)
-rm(band2)
-rm(band3)
-rm(band4)
-rm(band5)
-rm(band6)
-rm(band7)
-rm(band8)
-rm(band9)
-rm(band10)
-rm(band11)
+for (i in bands) {
+  rm(i)
+}
 
 # We can use a general 'garbage collection' to free up some space as well that 
 # may be occupied
@@ -237,10 +229,10 @@ as(ndvi, "SpatialPixelsDataFrame") %>%
 points_agriculture <- viewRGB(image, r = 4, g = 3, b = 2) %>% 
   editMap()
 
-saveRDS(points_agriculture, file = "points_agriculture.rds")
+saveRDS(points_agriculture, file = "data/points_agriculture.rds")
 
-# save as agriculture after first iteration
-agriculture <- points$finished$geometry %>% 
+# Rename column with agriculture geometries
+agriculture <- points_agriculture$finished$geometry %>% 
   st_sf() %>% 
   mutate(class = "agriculture", id = 1)
 
@@ -249,10 +241,10 @@ agriculture <- points$finished$geometry %>%
 points_urban <- viewRGB(image, r = 4, g = 3, b = 2) %>% 
   editMap()
 
-saveRDS(points_urban, file = "points_urban.rds")
+saveRDS(points_urban, file = "data/points_urban.rds")
 
-# then save as undeveloped land after second iteration
-urban <- points$finished$geometry %>% 
+# Rename column with urban geometries
+urban <- points_urban$finished$geometry %>% 
   st_sf() %>% 
   mutate(class = "urban", id = 2)
 
@@ -260,30 +252,29 @@ urban <- points$finished$geometry %>%
 points_water <- viewRGB(image, r = 4, g = 3, b = 2) %>% 
   editMap()
 
-saveRDS(points_water, file = "points_water.rds")
+saveRDS(points_water, file = "data/points_water.rds")
 
-# save as water for the third
-water <- points$finished$geometry %>% 
-  st_sf() %>% mutate(class = "water", id = 3)
+# Rename column with water geometries
+water <- points_water$finished$geometry %>% 
+  st_sf() %>%
+  mutate(class = "water", id = 3)
 
 # Vegetation -------------------------------------------------------------------
 points_vegetation <- viewRGB(image, r = 4, g = 3, b = 2) %>% 
   editMap()
 
-saveRDS(points_vegetation, file = "points_vegetation.rds")
+saveRDS(points_vegetation, file = "data/points_vegetation.rds")
 
-# save as other vegetation for the fourth
-veg <- points$finished$geometry %>% 
+# Rename column with vegetation geometries
+veg <- points_vegetation$finished$geometry %>% 
   st_sf() %>%
   mutate(class = "vegetation", id = 4)
-
 
 # Loading a point file ----------------------------------------------------
 
 # If you missed one of your processes, load the point file with the next
-# intruction:
+# instruction:
 # readRDS(file = "points_water.rds")
-
 
 # Other vegetation will cover things such as shrublands, forests, or grasslands 
 # that are possible not as vibrant green as agriculture
@@ -291,57 +282,57 @@ veg <- points$finished$geometry %>%
 # We will now combine all the collected points into on training dataset
 training_points <- rbind(agriculture, veg, water, urban)
 
-
-####################################################################################
 # You can write these points as a shapefile with: 
-write_sf(training_points, "calgary_trainingPoints.shp", driver = "ESRI shapefile")
+write_sf(training_points, 
+         "data/calgary_training_points.shp",
+         driver = "ESRI shapefile")
 
-# to be read back in later with: 
-training_points <- st_read("calgary_trainingPoints.shp")
-####################################################################################
-#if you wish to use pre-determined training points as well, there are some here:
-#training_points <- st_read("./data/calgary_trainingPoints.shp", quiet = TRUE)
-#Please attempt to use your own first, or at least once
+# To be read back in later with: 
+# training_points <- st_read("calgary_training_points.shp")
 
-#Lets check our distribution of points for the training dataset
-# read in the city boundary for calgary
-cityboundary <- st_read("./data/CityBoundary.geojson", quiet = TRUE)
+# Lets check our distribution of points for the training dataset
+# Read in the city boundary for calgary
+city_boundary <- st_read("data/CityBoundary.geojson", quiet = TRUE)
 
-# create a map looking at just the distribution of points
-A <- ggplot() +
-  geom_sf(data = cityboundary, fill = "light gray", color = NA) +
+# create a map looking at just the distribution of polygons
+polygons_distribution <- ggplot() +
+  geom_sf(data = city_boundary, fill = "light gray", color = NA) +
   geom_sf(data = training_points, size = 0.5) +
   labs(title = "Distribution of\nclassification points") +
   theme(panel.background = element_blank(), axis.ticks = element_blank(), 
         axis.text = element_blank())
 
-# create a map looking at the distribution of points by classification type
-B <- ggplot() +
-  geom_sf(data = cityboundary, fill = "light gray", color = NA) +
-  geom_sf(data = training_points, aes(color = class), size = 0.5) +
-  scale_color_manual(values = c('burlywood', 'darkgreen', 'blue')) +
+# create a map looking at the distribution of polygons by classification type
+polygons_categories <- ggplot() +
+  geom_sf(data = city_boundary, fill = "light gray", color = NA) +
+  geom_sf(data = training_points, aes(fill = class), size = 0.5) +
+  scale_fill_viridis_d() +
   labs(title = "Classification points by land use") +
   theme(panel.background = element_blank(), axis.ticks = element_blank(), 
         axis.text = element_blank())
 
-# plot side by side
-A + B + plot_layout(ncol = 2)
+# Plot side by side
+polygons_distribution + 
+  polygons_categories + 
+  plot_layout(ncol = 2)
 
-#See how your distribution is allocated, if you feel as though it is biased to one section or not well distributed
-#you may wish to redo the training data specification
+#  See how your distribution is allocated, if you feel as though it is biased to 
+# one section or not well distributed you may wish to redo the training data
+# specification
 
-#Now we will extract the spectral data or band data for our training points
-#first convert to a spatial point format
+# Now we will extract the spectral data or band data for our training points
+# first convert to a spatial point format
 training_points <- as(training_points, 'Spatial')
-#extract values to a data frame
-df <- raster::extract(image, training_points) %>%
-  round()
 
-#we should now have a matrix of band values for each point
+#  Extract values to a data frame
+df <- raster::extract(image, training_points) #%>%
+  # round()
+
+# We should now have a matrix of band values for each point
 head(df)
 
-#try exploring the data through plotting
-#remember you id numbers from the sections above
+# Try exploring the data through plotting
+# remember you id numbers from the sections above
 profiles <- df %>% 
   as.data.frame() %>% 
   cbind(., training_points$id) %>% 
@@ -368,17 +359,21 @@ profiles <- df %>%
 
 head(profiles)
 
-#We can now plot the profiles to see if they are indeed unique and distinguishable
+# We can now plot the profiles to see if they are indeed unique and distinguishable
 
 profiles %>% 
   select(-id) %>% 
   gather() %>% 
-  mutate(class = rep(c("agriculture", "urban", "water", "other vegetation"), 11)) %>% 
+  mutate(class = rep(c("agriculture", "urban", "water", "other vegetation"),
+                     11)) %>% 
   ggplot(data = ., aes(x = fct_relevel(as.factor(key),
-                                       levels = c("band1", "band2", "band3", "band4","band5",
-                                                  "band6", "band7", "band8", "band9", "band10",
+                                       levels = c("band1", "band2", 
+                                                  "band3", "band4",
+                                                  "band5", "band6",
+                                                  "band7", "band8",
+                                                  "band9", "band10",
                                                   "band11")), y = value, 
-                       group=class, color = class)) +
+                       group  = class, color = class)) +
   geom_point(size = 2.5) +
   geom_line(lwd = 1.2) +
   scale_color_manual(values=c('lawngreen', 'burlywood', 'lightblue', 'darkgreen')) +
